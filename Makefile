@@ -6,7 +6,7 @@ LIB=lib
 OBJ=obj
 SRC=src
 
-CFLAGS=-DSTACK_SIZE=14 -I${INC}
+CFLAGS=-I${INC}
 #CPPFLAGS=
 LDFLAGS=-Llib
 
