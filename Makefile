@@ -1,5 +1,4 @@
 CC=gcc -Wall -ansi
-LDFLAGS=-Llib
 AR=ar
 BIN=bin
 INC=include
@@ -8,6 +7,8 @@ OBJ=obj
 SRC=src
 
 CFLAGS=-DSTACK_SIZE=14 -I${INC}
+#CPPFLAGS=
+LDFLAGS=-Llib
 
 bin_=
 obj_=
@@ -29,8 +30,8 @@ ${BIN}:
 ${LIB}:
 	mkdir ${LIB}
 
-${OBJ}/%.o: ${SRC}/%.c ${hdr}
-	${CC} -c -o $@ $<  ${CFLAGS}
+${OBJ}/%.o: ${SRC}/%.c
+	${CC} -c -o $@ $<  ${CFLAGS} ${CPPFLAGS}
 
 ###### binary rules ######
 
