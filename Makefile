@@ -12,7 +12,7 @@ LDFLAGS=-Llib
 
 bin_=
 obj_=
-hdr_=list.h stack.h fifo.h
+hdr_=
 
 
 hdr=$(patsubst %,${INC}/%,${hdr_})
