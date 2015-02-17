@@ -6,7 +6,7 @@ LIB=lib
 OBJ=obj
 SRC=src
 
-CFLAGS=-I${INC}
+CFLAGS=-O2 -I${INC}
 #CPPFLAGS=
 LDFLAGS=-Llib
 
@@ -19,7 +19,7 @@ hdr=$(patsubst %,${INC}/%,${hdr_})
 bin=$(patsubst %,${BIN}/%,${bin_})
 obj=$(patsubst %,${OBJ}/%,${obj_})
 
-all: directories
+all: directories ${bin}
 
 directories: ${OBJ} ${BIN} ${LIB}
 
@@ -34,6 +34,9 @@ ${OBJ}/%.o: ${SRC}/%.c
 	${CC} -c -o $@ $<  ${CFLAGS} ${CPPFLAGS}
 
 ###### binary rules ######
+
+${BIN}/%: ${OBJ}/%.o
+	${CC} ${LDFLAGS} -o $@ $^
 
 ###### library rules ######
 
