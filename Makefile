@@ -1,4 +1,4 @@
-CC=gcc -Wall -ansi
+CC=gcc -Wall
 AR=ar
 BIN=bin
 INC=include
