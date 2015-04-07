@@ -36,7 +36,7 @@ ${OBJ}/%.o: ${SRC}/%.c
 ###### binary rules ######
 
 ${BIN}/%: ${OBJ}/%.o
-	${CC} ${LDFLAGS} -o $@ $^
+	${CC} -o $@ $^  ${LDFLAGS}
 
 ###### library rules ######
 
