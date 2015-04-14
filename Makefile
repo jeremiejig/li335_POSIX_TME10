@@ -7,7 +7,7 @@ OBJ=obj
 SRC=src
 LD_LIBRARY_PATH=${LIB}
 
-CFLAGS=-O2 -I${INC}
+CFLAGS=-O2 -I${INC} -fPIC
 #CPPFLAGS=
 LDFLAGS=-Llib -lmyqueue
 
