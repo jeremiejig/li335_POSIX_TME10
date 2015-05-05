@@ -26,10 +26,12 @@ runall: all run1
 
 all: directories ${lib} ${bin}
 
-run1:
+${bin}: ${lib}
+
+run1: ${BIN}/test1_myqueue
 	LD_LIBRARY_PATH=${LD_LIBRARY_PATH} bin/test1_myqueue
 
-run2:
+run2: ${BIN}/test2_myqueue
 	LD_LIBRARY_PATH=${LD_LIBRARY_PATH} bin/test2_myqueue
 
 directories: ${OBJ} ${BIN} ${LIB}
@@ -47,12 +49,12 @@ ${OBJ}/%.o: ${SRC}/%.c
 ###### binary rules ######
 
 ${BIN}/%: ${OBJ}/%.o
-	${CC} -o $@ $^  ${LDFLAGS}
+	${CC} -o $@ $^ ${LDFLAGS}
 
 ###### library rules ######
 
 ${LIB}/lib%.so: ${OBJ}/%.o
-	${CC} -o $@ $^ -shared 
+	${CC} -o $@ $^ -shared -lrt 
 
 clean:
 	rm -f ${OBJ}/* ${BIN}/* ${LIB}/*
