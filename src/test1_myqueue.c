@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 
+void exit_error() {
+	perror("");
+	exit(-1);
+}
 
 int main(int argc, char** argv) {
 
@@ -11,6 +15,8 @@ int main(int argc, char** argv) {
 	mqd_t qid;
 	
 	qid = mq_open("/you_queue", O_CREAT|O_RDWR, 0666);
+	if(qid == -1)
+		exit_error();
 	
 	printf("open\n");
 	
@@ -19,7 +25,8 @@ int main(int argc, char** argv) {
 	printf("%%%%%%%% SEND %%%%%%%%\n");
 	for (i = 0; i < 70; i++)
 		if (fork()==0) {
-			mq_send(qid, s, strlen(s)+1, (getpid()%32)+1);
+			if(mq_send(qid, s, strlen(s)+1, (getpid()%32)+1))
+				exit_error();
 			printf("SEND> msg prio %d\n", (getpid()%32)+1);
 			exit(0);
 		}
@@ -27,7 +34,8 @@ int main(int argc, char** argv) {
 	printf("%%%%%%%% RECV %%%%%%%%\n");
 	for (i = 0; i < 70; i++)
 		if (fork()== 0) {
-			mq_receive(qid, s2, 32, &a);
+			if(mq_receive(qid, s2, 32, &a))
+				exit_error();
 			printf("RECV> msg prio %d -- %s\n", a, s2);
 			exit(0);
 		}
@@ -39,8 +47,10 @@ int main(int argc, char** argv) {
 
 	
 	
-	mq_close(qid);
-	mq_unlink("/you_queue");
+	if(mq_close(qid))
+		perror("");
+	if(mq_unlink("/you_queue"))
+		perror("");
 	
 	return 0;
 
