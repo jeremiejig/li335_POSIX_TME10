@@ -26,7 +26,7 @@ runall: all run1
 
 all: directories ${lib} ${bin}
 
-${bin}: ${lib}
+run1 run2: ${lib}
 
 run1: ${BIN}/test1_myqueue
 	LD_LIBRARY_PATH=${LD_LIBRARY_PATH} bin/test1_myqueue
