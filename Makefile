@@ -22,7 +22,7 @@ lib=$(patsubst %,${LIB}/lib%.so,${lib_})
 bin=$(patsubst %,${BIN}/%,${bin_})
 obj=$(patsubst %,${OBJ}/%,${obj_})
 
-runall: all run1 
+runall: all run1 run2
 
 all: directories ${lib} ${bin}
 
