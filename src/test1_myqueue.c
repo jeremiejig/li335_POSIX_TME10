@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 	printf("%%%%%%%% SEND %%%%%%%%\n");
 	for (i = 0; i < 70; i++)
 		if (fork()==0) {
-			if(mq_send(qid, s, strlen(s)+1, (getpid()%32)+1))
+			if(mq_send(qid, s, strlen(s)+1, (getpid()%32)+1) == -1)
 				exit_error();
 			printf("SEND> msg prio %d\n", (getpid()%32)+1);
 			exit(0);
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
 	printf("%%%%%%%% RECV %%%%%%%%\n");
 	for (i = 0; i < 70; i++)
 		if (fork()== 0) {
-			if(mq_receive(qid, s2, 32, &a))
+			if(mq_receive(qid, s2, 32, &a)==-1)
 				exit_error();
 			printf("RECV> msg prio %d -- %s\n", a, s2);
 			exit(0);
