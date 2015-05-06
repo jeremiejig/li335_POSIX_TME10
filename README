@@ -11,4 +11,5 @@
 
 == Etat d'avancement ==
 
+	Manque le nettoyage des sémaphores, vérifier /dev/shm
 
