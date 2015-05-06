@@ -19,7 +19,9 @@ struct localinfo_s {
 void dump_queue(struct mq_attr* attr);
 
 int started = 0;
+//Contient surtout le flag local associé à la file (localinfo)
 struct localinfo_s localinfo[20];
+//Projection du shm sur hashLink[fd]
 struct mq_attr *hashLink[20];
 
 char genpathed[32];
@@ -57,26 +59,31 @@ mqd_t mq_open(const char* path, int flags, int mode){
 		attr->first = NULL;
 		//attr->last = NULL;
 
+		//All the msg struct isn't alloc at first.
 		for(i = 0; i < attr->mq_maxmsg ; i++)
 			attr->queue[i].used = 0;
 
-		//Creating sem.
+		/**	Creating semaphore.	**/
+		//Writer initialised at maxmsg
 		for(i = 0; SEM_FAILED==(localinfo[fd].blocked_writers = sem_open(genPath("BLOCKED_WRITERS_PATH",i),
 						O_CREAT | O_EXCL, 0600, attr->mq_maxmsg))
 				&& i < 1000; i++ )
 			if(localinfo->blocked_writers == SEM_FAILED && errno != EEXIST)
 				return -1;
 		strcpy(attr->blocked_writers, genPath("BLOCKED_WRITERS_PATH",i));
+		//Reader initialised at 0
 		for(i = 0; SEM_FAILED==(localinfo[fd].blocked_readers = sem_open(genPath("BLOCKED_READERS_PATH",i), O_CREAT | O_EXCL, 0600, 0))
 				&& i < 1000; i++ )
 			if(localinfo->blocked_readers == SEM_FAILED && errno != EEXIST)
 				return -1;
 		strcpy(attr->blocked_readers, genPath("BLOCKED_READERS_PATH",i));
+		//Mutex for queue operation (send, receive and notify)
 		for(i = 0; SEM_FAILED==(localinfo[fd].queue_sem       = sem_open(genPath("QUEUE_SEM_PATH",i), O_CREAT | O_EXCL, 0600, 1))
 				&& i < 1000; i++ )
 			if(localinfo->queue_sem == SEM_FAILED && errno != EEXIST)
 				return -1;
 		strcpy(attr->queue_sem, genPath("QUEUE_SEM_PATH",i));
+		//Mutex for allocation of msg in the shared memory.
 		for(i = 0; SEM_FAILED==(localinfo[fd].search_sem      = sem_open(genPath("SEARCH_SEM_PATH",i) , O_CREAT | O_EXCL, 0600, 1))
 				&& i < 1000; i++ )
 			if(localinfo->search_sem == SEM_FAILED && errno != EEXIST)
@@ -155,15 +162,18 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 		errno = EBADF;
 		return -1;
 	}
+	//Non Bloquing mode, see sem_trywait(3). set errno to EACCES if cannot acquire lock.
 	if(localinfo[mqd].mq_flags & O_NONBLOCK && sem_trywait(localinfo[mqd].blocked_writers)) {
 		errno = EACCES;
 		return -1;
 	}
-	if(sem_wait(localinfo[mqd].blocked_writers)){
+	//Bloquing mode.
+	if(!(localinfo[mqd].mq_flags & O_NONBLOCK) && sem_wait(localinfo[mqd].blocked_writers)){
 		perror("mq_send");
 		return -1;
 	}
 
+	//Beginning msgtosend = shm_malloc();
 	if(sem_wait(localinfo[mqd].search_sem)){
 		perror("mq_send");
 		return -1;
@@ -175,18 +185,24 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 		perror("mq_send");
 		return -1;
 	}
+	//End of shm_malloc()
+	//
+	//Preparing the message.
 	msgtosend->length = msg_len < attr->mq_msgsize ? msg_len : attr->mq_msgsize ;
 	msgtosend->prio = msg_prio;
 	msgtosend->next = NULL;
 	memcpy(msgtosend->data, msg_ptr, msgtosend->length);
+	//Mutex on queue
 	if(sem_wait(localinfo[mqd].queue_sem)){
 		perror("mq_send");
 		return -1;
 	}
+	//Search where to insert.
 	for(insert = attr->first;
 			insert != NULL && insert->next != NULL
 		       	&& (insert->next->prio >= msgtosend->prio );
 			insert = insert->next) ;
+	//Inserting
 	if(insert == NULL)
 		attr->first = msgtosend;
 	else if(insert == attr->first) {
@@ -201,16 +217,21 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 		msgtosend->next = insert->next;
 		insert->next = msgtosend;
 	}
-	dump_queue(attr);
+	// Debug queue.
+	//dump_queue(attr);
+	//
+	// If queue empty preparing to send signal.
 	if(attr->mq_curmsgs++ == 0) {
 		subscriber = attr->subscriber;
 		notification_sig = attr->notification_sig;
 	}
 	attr->subscriber = 0;
+	//Releasing mutex
 	if(sem_post(localinfo[mqd].queue_sem)){
 		perror("mq_send");
 		return -1;
 	}
+	//releasing a resource to the receivers.
 	if(sem_post(localinfo[mqd].blocked_readers)){
 		perror("mq_send");
 		return -1;
@@ -229,32 +250,40 @@ ssize_t mq_receive(mqd_t mqd, char* msg_ptr, size_t msg_len, unsigned* msg_prio)
 		errno = EBADF;
 		return -1;
 	}
+	//Non Bloquing mode, see sem_trywait(3). set errno to EACCES if cannot acquire lock.
 	if(localinfo[mqd].mq_flags & O_NONBLOCK && sem_trywait(localinfo[mqd].blocked_readers)) {
 		errno = EACCES;
 		return -1;
 	}
-	else if(sem_wait(localinfo[mqd].blocked_readers)) {
+	//Bloquing mode
+	if(!(localinfo[mqd].mq_flags & O_NONBLOCK) && sem_wait(localinfo[mqd].blocked_readers)) {
 		perror("mq_receive");
 		return -1;
 	}
+	//Mutex on queue
 	if(sem_wait(localinfo[mqd].queue_sem)) {
 		perror("mq_receive");
 		return -1;
 	}
+	//Retrieve the first message.
 	msgread = attr->first;
 	attr->first = attr->first->next;
 	attr->mq_curmsgs--;
+	//Releasing Mutex
 	if(sem_post(localinfo[mqd].queue_sem)) {
 		perror("mq_receive");
 		return -1;
 	}
 
+	//Reading the msg.
 	if(msgread->length < msg_len)
 		sizeRead = msgread->length;
 	memcpy(msg_ptr, msgread->data, sizeRead);
 	if(msg_prio != NULL)
 		*msg_prio = msgread->prio;
+	//Releasing resource shm_free(msgread)
 	msgread->used = 0;
+	//Releasing a resource to writer
 	if(sem_post(localinfo[mqd].blocked_writers)) {
 		perror("mq_receive");
 		return -1;
@@ -281,6 +310,7 @@ mqd_t mq_notify(mqd_t mqd, const struct sigevent* sevp){
 		errno = EINVAL;
 		return -1;
 	}
+	//Subscribing to the queue.
 	sem_wait(localinfo[mqd].queue_sem);
 	attr->subscriber = getpid();
 	attr->notification_sig = sevp->sigev_signo;
