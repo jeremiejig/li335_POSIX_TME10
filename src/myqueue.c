@@ -109,6 +109,7 @@ int mq_close(mqd_t mqd) {
 	return close(mqd);
 }
 int mq_unlink(const char* path) {
+	//Unlink sem.
 	return shm_unlink(path);
 }
 
@@ -146,6 +147,8 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 	int i;
 	msg* msgtosend;
 	msg *insert;
+	pid_t subscriber = 0;
+	int notification_sig;
 	if(attr == NULL) {
 		errno = EBADF;
 		return -1;
@@ -188,8 +191,10 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 		msgtosend->next = insert->next;
 		insert->next = msgtosend;
 	}
-	if(attr->mq_curmsgs++ == 0)
-		kill(attr->subscriber, attr->notification_sig);
+	if(attr->mq_curmsgs++ == 0) {
+		subscriber = attr->subscriber;
+		notification_sig = attr->notification_sig;
+	}
 	attr->subscriber = 0;
 	if(sem_post(localinfo[mqd].queue_sem)){
 		perror("mq_send");
@@ -199,6 +204,8 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 		perror("mq_send");
 		return -1;
 	}
+	if(subscriber != 0)
+		kill(subscriber, notification_sig);
 
 	return 0;
 }
@@ -263,8 +270,10 @@ mqd_t mq_notify(mqd_t mqd, const struct sigevent* sevp){
 		errno = EINVAL;
 		return -1;
 	}
+	sem_wait(localinfo[mqd].queue_sem);
 	attr->subscriber = getpid();
 	attr->notification_sig = sevp->sigev_signo;
+	sem_post(localinfo[mqd].queue_sem);
 	return (mqd_t) 0;
 }
 
