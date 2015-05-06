@@ -16,6 +16,8 @@ struct localinfo_s {
 	sem_t *search_sem;
 };
 
+void dump_queue(struct mq_attr* attr);
+
 int started = 0;
 struct localinfo_s localinfo[20];
 struct mq_attr *hashLink[20];
@@ -145,7 +147,7 @@ int mq_setattr(mqd_t mqd, struct mq_attr* newattr, struct mq_attr* oldattr){
 int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 	struct mq_attr *attr = hashLink[mqd];
 	int i;
-	msg* msgtosend;
+	msg *msgtosend;
 	msg *insert;
 	pid_t subscriber = 0;
 	int notification_sig;
@@ -183,14 +185,23 @@ int mq_send(mqd_t mqd, const char* msg_ptr, size_t msg_len, unsigned msg_prio){
 	}
 	for(insert = attr->first;
 			insert != NULL && insert->next != NULL
-		       	&& (insert->prio == insert->next->prio || insert->next->prio > msgtosend->prio );
-			insert = insert->next);
+		       	&& (insert->next->prio >= msgtosend->prio );
+			insert = insert->next) ;
 	if(insert == NULL)
 		attr->first = msgtosend;
-	else {
+	else if(insert == attr->first) {
+		if(insert->prio < msgtosend->prio) {
+			msgtosend->next = insert;
+			attr->first = msgtosend;
+		} else {
+			msgtosend->next = insert->next;
+			insert->next = msgtosend;
+		}
+	} else {
 		msgtosend->next = insert->next;
 		insert->next = msgtosend;
 	}
+	dump_queue(attr);
 	if(attr->mq_curmsgs++ == 0) {
 		subscriber = attr->subscriber;
 		notification_sig = attr->notification_sig;
@@ -275,6 +286,14 @@ mqd_t mq_notify(mqd_t mqd, const struct sigevent* sevp){
 	attr->notification_sig = sevp->sigev_signo;
 	sem_post(localinfo[mqd].queue_sem);
 	return (mqd_t) 0;
+}
+
+void dump_queue(struct mq_attr *attr) {
+	msg *msg;
+
+	for(msg = attr->first; msg != NULL; msg = msg->next)
+		printf("\t(prio: %d)",msg->prio);
+	printf("\n");
 }
 
 
