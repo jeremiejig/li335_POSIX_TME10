@@ -19,6 +19,8 @@ typedef struct message {
 	msg_data data;
 	unsigned prio;
 	size_t length;
+	struct message* next;
+	int used;
 } msg;
 	
 	
@@ -46,6 +48,10 @@ struct mq_attr {
 	int notification_sig;
 	/*La file elle-meme*/
 	msg queue[32];
+	msg *first;
+	//msg *last;
+	char	queue_sem[32];
+	char	search_sem[32];
 };
 
 
